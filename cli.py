@@ -4195,6 +4195,7 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin, CLIBillingMixin):
         self._voice_continuous = False
         self._voice_tts_done = threading.Event()
         self._voice_tts_done.set()
+        self._voice_tts_interrupt = False  # TTS interrupt on new input (stops afplay on Enter)
 
         # Status bar visibility (toggled via /statusbar)
         self._status_bar_visible = True
@@ -11121,6 +11122,30 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin, CLIBillingMixin):
         finally:
             self._voice_tts_done.set()
 
+    def _handle_voice_command(self, command: str):
+        """Handle /voice [on|off|tts|status] command."""
+        parts = command.strip().split(maxsplit=1)
+        subcommand = parts[1].lower().strip() if len(parts) > 1 else ""
+
+        if subcommand == "on":
+            self._enable_voice_mode()
+        elif subcommand == "off":
+            self._disable_voice_mode()
+        elif subcommand == "tts":
+            self._toggle_voice_tts()
+        elif subcommand == "status":
+            self._show_voice_status()
+        elif subcommand == "tts_interrupt":
+            self._toggle_tts_interrupt()
+        elif subcommand == "":
+            # Toggle
+            if self._voice_mode:
+                self._disable_voice_mode()
+            else:
+                self._enable_voice_mode()
+        else:
+            _cprint(f"Unknown voice subcommand: {subcommand}")
+            _cprint("Usage: /voice [on|off|tts|tts_interrupt|status]")
 
     def _voice_beeps_enabled(self) -> bool:
         """Return whether CLI voice mode should play record start/stop beeps."""
@@ -11242,6 +11267,12 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin, CLIBillingMixin):
 
         _cprint(f"{_ACCENT}Voice TTS {status}.{_RST}")
 
+    def _toggle_tts_interrupt(self):
+        """Toggle TTS interrupt: new input stops TTS playback immediately."""
+        self._voice_tts_interrupt = not self._voice_tts_interrupt
+        status = "enabled" if self._voice_tts_interrupt else "disabled"
+        _cprint(f"{_ACCENT}TTS interrupt {status} — Enter during playback stops audio.{_RST}")
+
     def _show_voice_status(self):
         """Show current voice mode status."""
         from tools.voice_mode import check_voice_requirements
@@ -11251,6 +11282,7 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin, CLIBillingMixin):
         _cprint(f"\n{_BOLD}Voice Mode Status{_RST}")
         _cprint(f"  Mode:      {'ON' if self._voice_mode else 'OFF'}")
         _cprint(f"  TTS:       {'ON' if self._voice_tts else 'OFF'}")
+        _cprint(f"  TTS interrupt: {'ON' if self._voice_tts_interrupt else 'OFF'}")
         _cprint(f"  Recording: {'YES' if self._voice_recording else 'no'}")
         # Display the startup-pinned label so /voice status always
         # matches the live prompt_toolkit binding (Copilot round-14 on
@@ -12192,6 +12224,13 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin, CLIBillingMixin):
                             # Signal TTS to stop on interrupt
                             if stop_event is not None:
                                 stop_event.set()
+                            # Stop non-streaming TTS (Edge TTS, mac-say, etc.) when tts_interrupt is enabled
+                            if self._voice_tts_interrupt:
+                                try:
+                                    from tools.voice_mode import stop_playback
+                                    stop_playback()
+                                except Exception:
+                                    pass
                             self.agent.interrupt(interrupt_msg)
                             # Clear any active overlay states the interrupted agent
                             # left behind.  approval/clarify/sudo/secret prompts gate
