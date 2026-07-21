@@ -307,7 +307,11 @@ export const sessionCommands: SlashCommand[] = [
       const normalized = (arg ?? '').trim().toLowerCase()
 
       const action =
-        normalized === 'on' || normalized === 'off' || normalized === 'tts' || normalized === 'tts_interrupt' || normalized === 'status'
+        normalized === 'on' ||
+        normalized === 'off' ||
+        normalized === 'tts' ||
+        normalized === 'tts_interrupt' ||
+        normalized === 'status'
           ? normalized
           : 'status'
 
@@ -377,7 +381,9 @@ export const sessionCommands: SlashCommand[] = [
           }
 
           if (action === 'tts_interrupt') {
-            ctx.transcript.sys(`TTS interrupt ${r.tts_interrupt ? 'enabled' : 'disabled'} — Enter during playback stops audio.`)
+            ctx.transcript.sys(
+              `TTS interrupt ${r.tts_interrupt ? 'enabled' : 'disabled'} — Enter during playback stops audio.`
+            )
             ctx.transcript.sys(`  Mode:          ${r.enabled ? 'ON' : 'OFF'}`)
             ctx.transcript.sys(`  TTS:           ${r.tts ? 'ON' : 'OFF'}`)
             ctx.transcript.sys(`  TTS interrupt: ${r.tts_interrupt ? 'ON' : 'OFF'}`)
